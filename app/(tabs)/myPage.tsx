@@ -1,7 +1,7 @@
 import User from "@/assets/images/user.svg";
 import Header from "@/components/Header";
 import { auth } from "@/firebaseConfig";
-import { clearUserInfo } from "@/services/auth";
+import { clearUserInfo, deleteUserInfo } from "@/services/auth";
 import { useBoundStore } from "@/store/useBoundStore";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
@@ -19,6 +19,18 @@ export default function MyPage() {
       }
       clearUserInfo(setUserInfo);
       router.replace("/");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleDeleteUser() {
+    try {
+      if (userInfo.loginType === "google") {
+        await auth.currentUser?.delete();
+        await deleteUserInfo(userInfo, setUserInfo);
+        router.replace("/");
+      }
     } catch (e) {
       console.error(e);
     }
@@ -42,7 +54,7 @@ export default function MyPage() {
           <Pressable style={styles.buttonContainer} onPress={handleSignOut}>
             <Text style={styles.buttonText}>로그아웃</Text>
           </Pressable>
-          <Pressable style={styles.buttonContainer} onPress={() => console.log("logout")}>
+          <Pressable style={styles.buttonContainer} onPress={handleDeleteUser}>
             <Text style={styles.buttonText}>탈퇴하기</Text>
           </Pressable>
         </View>

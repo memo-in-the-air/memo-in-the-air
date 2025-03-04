@@ -1,5 +1,5 @@
 import { database } from "@/firebaseConfig";
-import { Database, get, ref, set, update } from "firebase/database";
+import { Database, get, ref, remove, set, update } from "firebase/database";
 
 type userType = {
   userId: string;
@@ -30,4 +30,15 @@ export async function upsertUserInfo(userInfo: userType) {
   });
 
   return userInfo;
+}
+
+export async function deleteUser(userInfo: userType) {
+  try {
+    await remove(ref(database, `user/${userInfo.userId}`));
+    await remove(ref(database, `memo/${userInfo.userId}`));
+
+    return true;
+  } catch {
+    return false;
+  }
 }
