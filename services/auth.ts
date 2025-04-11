@@ -1,6 +1,4 @@
 import { deleteUser, upsertUserInfo } from "@/firebase/user";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as AppleAuthentication from "expo-apple-authentication";
 import { User } from "firebase/auth";
 
 type userType = {
@@ -11,42 +9,32 @@ type userType = {
   loginType: string | null;
 };
 
-export async function saveAppleUserInfo(
-  userId: string,
-  userInfo: AppleAuthentication.AppleAuthenticationCredential,
-  setUserInfo: (user: userType) => void,
-) {
-  const user = await upsertUserInfo({
-    userId: userId,
-    authId: userInfo.user,
-    email: userInfo.email,
-    nickName: `${userInfo.fullName?.givenName + " " + userInfo.fullName?.familyName}`,
-    loginType: "apple",
-  });
-
-  await AsyncStorage.setItem("userInfo", JSON.stringify(user));
-  setUserInfo(user);
-}
-
-export async function saveGoogleUserInfo(
+export async function saveUserInfo(
   userId: string,
   userInfo: User,
   setUserInfo: (user: userType) => void,
+  loginType: string,
 ) {
   const user = await upsertUserInfo({
-    userId: userId,
+    userId,
     authId: userInfo.uid,
     email: userInfo.email,
     nickName: userInfo.displayName,
-    loginType: "google",
+    loginType,
   });
 
-  await AsyncStorage.setItem("userInfo", JSON.stringify(user));
+  setUserInfo(user);
+}
+
+export async function updateUserLastSignInAt(
+  userId: string,
+  setUserInfo: (user: userType) => void,
+) {
+  const user = await upsertUserInfo({ userId });
   setUserInfo(user);
 }
 
 export async function clearUserInfo(setUserInfo: (user: userType) => void) {
-  await AsyncStorage.removeItem("userInfo");
   setUserInfo({
     userId: "",
     authId: "",

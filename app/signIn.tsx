@@ -4,14 +4,21 @@ import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { START_NON_USER_BUTTON } from "@/constants/Buttons";
 import { APP_DESC, APP_TITLE } from "@/constants/Messages";
 import { auth } from "@/firebaseConfig";
-import { saveAppleUserInfo, saveGoogleUserInfo } from "@/services/auth";
+import { saveUserInfo, updateUserLastSignInAt } from "@/services/auth";
 import { useBoundStore } from "@/store/useBoundStore";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { AuthSessionResult } from "expo-auth-session/build/AuthSession.types";
 import * as Google from "expo-auth-session/providers/google";
+import * as Crypto from "expo-crypto";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { GoogleAuthProvider, User, onAuthStateChanged, signInWithCredential } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  OAuthProvider,
+  User,
+  onAuthStateChanged,
+  signInWithCredential,
+} from "firebase/auth";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import Geolocation from "react-native-geolocation-service";
@@ -30,13 +37,15 @@ export default function SignIn() {
   useEffect(() => {
     if (response?.type === "success") {
       handleGoogleSiginResponse(response);
+    } else if (response?.type) {
+      setIsLoading(false);
     }
   }, [response]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user: User | null) => {
       if (user) {
-        await saveGoogleUserInfo(userId, user, setUserInfo);
+        updateUserLastSignInAt(userId, setUserInfo);
         router.replace("/memoList");
       }
     });
@@ -58,9 +67,15 @@ export default function SignIn() {
   }, []);
 
   async function handleGoogleSiginResponse(response: AuthSessionResult) {
-    const { id_token } = response.params;
-    const credential = GoogleAuthProvider.credential(id_token);
-    await signInWithCredential(auth, credential);
+    try {
+      const { id_token } = response.params;
+      const googleCredential = GoogleAuthProvider.credential(id_token);
+
+      const signInResult = await signInWithCredential(auth, googleCredential);
+      await saveUserInfo(userId, signInResult.user, setUserInfo, "google");
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   function handleGoogleSignIn() {
@@ -70,22 +85,34 @@ export default function SignIn() {
 
   async function handleAppleSignIn() {
     try {
-      const credential = await AppleAuthentication.signInAsync({
+      const rawNonce = Math.random().toString(36).substring(2, 10);
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce,
+      );
+
+      const appleCredential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
+        nonce: hashedNonce,
       });
 
-      if (credential.authorizationCode !== null) {
-        await saveAppleUserInfo(userId, credential, setUserInfo);
-        router.replace("/memoList");
+      if (appleCredential.identityToken) {
+        const firebaseCredential = new OAuthProvider("apple.com").credential({
+          idToken: appleCredential.identityToken,
+          rawNonce,
+        });
+
+        const signInResult = await signInWithCredential(auth, firebaseCredential);
+        await saveUserInfo(userId, signInResult.user, setUserInfo, "apple");
       } else {
         throw new Error("로그인 인증 실패");
       }
     } catch (e) {
       if (e.code !== "ERR_REQUEST_CANCELED") {
-        console.error(e.code);
+        console.error(e);
       }
     }
   }

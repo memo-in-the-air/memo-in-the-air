@@ -3,10 +3,10 @@ import { Database, get, ref, remove, set, update } from "firebase/database";
 
 type userType = {
   userId: string;
-  authId: string;
-  email: string | null;
-  nickName: string | null;
-  loginType: string | null;
+  authId?: string;
+  email?: string | null;
+  nickName?: string | null;
+  loginType?: string | null;
 };
 
 export async function upsertUserInfo(userInfo: userType) {
